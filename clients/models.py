@@ -4,15 +4,17 @@ import uuid
 
 class Client(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    title = models.CharField(max_length=10, blank=True, null=True)
     first_name = models.CharField(max_length=100)
     last_name = models.CharField(max_length=100)
+    preferred_name = models.CharField(max_length=100, blank=True, null=True)
     email = models.EmailField(unique=True)
     phone = models.CharField(max_length=20, blank=True, null=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     is_active = models.BooleanField(default=True)
     business = models.ForeignKey(
-        'accounts.Business',  # Update this reference
+        'accounts.Business',
         on_delete=models.CASCADE,
         related_name='clients'
     )
@@ -22,7 +24,7 @@ class Client(models.Model):
 
     def __str__(self):
         return f"{self.first_name} {self.last_name}"
-    
+
     def full_name(self):
         return f"{self.first_name} {self.last_name}"
 
