@@ -12,28 +12,31 @@ import logging
 logger = logging.getLogger(__name__)
 
 class BusinessRegistrationView(APIView):
-    """Public endpoint for initial business + admin user registration"""
     permission_classes = [AllowAny]
 
     def post(self, request):
         serializer = RegisterSerializer(data=request.data)
         if serializer.is_valid():
-            # Create business and admin user
-            user = serializer.save()
-            
-            # Grant Django admin access to first user
-            user.is_staff = True
-            user.is_superuser = True
-            user.save()
-            
-            # Generate tokens
-            refresh = RefreshToken.for_user(user)
-            
-            return Response({
-                'user': UserSerializer(user).data,
-                'access': str(refresh.access_token),
-                'refresh': str(refresh)
-            }, status=status.HTTP_201_CREATED)
+            try:
+                user = serializer.save()
+                user.is_business_admin = True
+                user.save()
+                
+                refresh = RefreshToken.for_user(user)
+                
+                logger.info(f"New business registration: {user.email}, business: {user.business.name}")
+                
+                return Response({
+                    'user': UserSerializer(user).data,
+                    'access': str(refresh.access_token),
+                    'refresh': str(refresh)
+                }, status=status.HTTP_201_CREATED)
+            except Exception as e:
+                logger.error(f"Registration failed: {str(e)}")
+                return Response(
+                    {'error': 'Registration failed. Please try again.'}, 
+                    status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                )
         
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
@@ -43,7 +46,20 @@ class UserCreateView(APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
-        # Add the business from the authenticated user
+        # Check if user is a business admin
+        if not request.user.is_business_admin:
+            return Response(
+                {'error': 'Only business admins can create users'}, 
+                status=status.HTTP_403_FORBIDDEN
+            )
+        
+        # Check if user has a business
+        if not request.user.business:
+            return Response(
+                {'error': 'User must belong to a business'}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
         data = request.data.copy()
         data['business_id'] = str(request.user.business.id)
         
@@ -67,3 +83,15 @@ class UserProfileView(APIView):
     def get(self, request):
         serializer = UserSerializer(request.user)
         return Response(serializer.data)
+    
+class LogoutView(APIView):
+    permission_classes = [IsAuthenticated]
+    
+    def post(self, request):
+        try:
+            refresh_token = request.data.get('refresh')
+            token = RefreshToken(refresh_token)
+            token.blacklist()  # Requires token_blacklist in INSTALLED_APPS
+            return Response(status=status.HTTP_205_RESET_CONTENT)
+        except Exception:
+            return Response(status=status.HTTP_400_BAD_REQUEST)

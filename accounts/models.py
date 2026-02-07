@@ -9,6 +9,12 @@ class Business(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
+    def __str__(self):  # Add this - makes Django admin much nicer
+        return self.name
+    
+    class Meta:  # Add this - better pluralization
+        verbose_name_plural = "Businesses"
+
 class UserManager(BaseUserManager):
     def create_user(self, email: str, password=None, **extra_fields):
         if not email:
@@ -29,10 +35,19 @@ class User(AbstractUser):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     username = None
     email = models.EmailField(unique=True)
+    is_business_admin = models.BooleanField(default=False)
     business = models.ForeignKey(Business, on_delete=models.CASCADE, related_name='business_users', null=True, blank=True)
     phone = models.CharField(max_length=50, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+
+    class Role(models.TextChoices):
+        ADVISOR = 'ADVISOR', 'Financial Advisor'
+        PARA_PLANNER = 'PARA_PLANNER', 'Paraplanner'
+        ADMIN_STAFF = 'ADMIN_STAFF', 'Administrative Staff'
+        COMPLIANCE = 'COMPLIANCE', 'Compliance Officer'
+
+    role = models.CharField(max_length=20, choices=Role.choices, default=Role.ADVISOR)
 
     groups = models.ManyToManyField(
         'auth.Group',
