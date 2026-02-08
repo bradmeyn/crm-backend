@@ -15,6 +15,7 @@ class BusinessRegistrationView(APIView):
     permission_classes = [AllowAny]
 
     def post(self, request):
+        logger.info(f"Request data: {request.data}")
         serializer = RegisterSerializer(data=request.data)
         if serializer.is_valid():
             try:
