@@ -1,13 +1,20 @@
 from rest_framework import serializers
-from .models import Client, Note
+from .models import Client, FileNote, FileAttachment
 
-class NoteSerializer(serializers.ModelSerializer):
+class FileAttachmentSerializer(serializers.ModelSerializer):
     class Meta:
-        model = Note
-        fields = ['id', 'title', 'body', 'created_at', 'updated_at', 'client']
+        model = FileAttachment
+        fields = '__all__'
+
+
+class FileNoteSerializer(serializers.ModelSerializer):
+    attachments = FileAttachmentSerializer(many=True)
+    class Meta:
+        model = FileNote
+        fields = ['id', 'title', 'body', 'created_at', 'updated_at', 'client', 'attachments']
 
 class ClientSerializer(serializers.ModelSerializer):
-    # notes = NoteSerializer(many=True, read_only=True)
+    file_notes = FileNoteSerializer(many=True, read_only=True)  
 
     class Meta:
         model = Client

@@ -1,7 +1,7 @@
 from rest_framework import viewsets
-from rest_framework.permissions import IsAuthenticated, AllowAny
-from .models import Client, Note
-from .serializers import ClientSerializer, NoteSerializer
+from rest_framework.permissions import IsAuthenticated
+from .models import Client, FileNote
+from .serializers import ClientSerializer, FileNoteSerializer
 
 
 class ClientViewSet(viewsets.ModelViewSet):
@@ -25,14 +25,14 @@ class ClientViewSet(viewsets.ModelViewSet):
     #     return super().create(request, *args, **kwargs)
 
 
-# class NoteViewSet(viewsets.ModelViewSet):
-#     permission_classes = [IsAuthenticated] 
-#     serializer_class = NoteSerializer
+class FileNoteViewSet(viewsets.ModelViewSet):
+    permission_classes = [IsAuthenticated] 
+    serializer_class = FileNoteSerializer
     
-#     def get_queryset(self):
-#         # Assuming notes are also business-scoped
-#         return Note.objects.filter(business_id=self.request.user.business_id)
+    def get_queryset(self):
+        # Assuming notes are also business-scoped
+        return FileNote.objects.filter()
     
-#     def perform_create(self, serializer):
-#         # Add business_id for notes too
-#         serializer.save(business_id=self.request.user.business_id)
+    def perform_create(self, serializer):
+        # Add business_id for notes too
+        serializer.save(business_id=self.request.user.business_id)
