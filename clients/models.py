@@ -1,28 +1,45 @@
 from django.db import models
 import uuid
 
-class Client(models.Model):
+
+class AuditModel(models.Model):
+    created_by = models.ForeignKey(
+        'accounts.User',
+        on_delete=models.SET_NULL,
+        related_name='%(class)s_created',
+        null=True
+    )
+    updated_by = models.ForeignKey(
+        'accounts.User',
+        on_delete=models.SET_NULL,
+        related_name='%(class)s_updated',
+        null=True, blank=True
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        abstract = True
+
+
+class Client(AuditModel):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     
-    # Personal Info
     title = models.CharField(max_length=10, blank=True, null=True)
     first_name = models.CharField(max_length=100)
     last_name = models.CharField(max_length=100)
     preferred_name = models.CharField(max_length=100, blank=True, null=True)
-    date_of_birth = models.DateField(blank=True, null=True)  # ADD - important for financial planning
+    date_of_birth = models.DateField(blank=True, null=True)
     
-    # Contact Info
     email = models.EmailField(unique=True)
     phone = models.CharField(max_length=20, blank=True, null=True)
     
-    # Address
     street_address = models.CharField(max_length=255, blank=True)
     suburb = models.CharField(max_length=100, blank=True)
-    state = models.CharField(max_length=3, blank=True)  # NSW, VIC, etc.
+    state = models.CharField(max_length=3, blank=True)
     postcode = models.CharField(max_length=4, blank=True)
     country = models.CharField(max_length=100, default='Australia')
     
-    # Client Status 
     class ClientStatus(models.TextChoices):
         PROSPECT = 'PROSPECT', 'Prospect'
         ACTIVE = 'ACTIVE', 'Active Client'
@@ -34,9 +51,8 @@ class Client(models.Model):
         choices=ClientStatus.choices,
         default=ClientStatus.PROSPECT
     )
-    is_active = models.BooleanField(default=True)  # Keep this too
+    is_active = models.BooleanField(default=True)
     
-    # Relationships
     business = models.ForeignKey(
         'accounts.Business',
         on_delete=models.CASCADE,
@@ -50,34 +66,14 @@ class Client(models.Model):
         blank=True
     )
     
-    # Audit fields
-    created_by = models.ForeignKey(
-        'accounts.User',
-        on_delete=models.SET_NULL,
-        related_name='clients_created',
-        null=True
-    )
-    updated_by = models.ForeignKey(
-        'accounts.User',
-        on_delete=models.SET_NULL,
-        related_name='clients_updated',
-        null=True,
-        blank=True
-    )
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
-    
-    # Additional useful fields
-    tax_file_number = models.CharField(max_length=11, blank=True)  # TFN - sensitive!
+    tax_file_number = models.CharField(max_length=11, blank=True)
     occupation = models.CharField(max_length=200, blank=True)
     employer = models.CharField(max_length=200, blank=True)
-    
-    # Custom notes field for quick reference
-    quick_note = models.TextField(blank=True)  # Quick notes, not same as FileNote model
+    quick_note = models.TextField(blank=True)
 
     class Meta:
         ordering = ['-created_at']
-        indexes = [  # ADD - performance
+        indexes = [
             models.Index(fields=['email']),
             models.Index(fields=['business', 'status']),
             models.Index(fields=['primary_advisor']),
@@ -90,9 +86,9 @@ class Client(models.Model):
 
     def full_name(self):
         return f"{self.first_name} {self.last_name}"
-    
+
     @property
-    def age(self):  
+    def age(self):
         if not self.date_of_birth:
             return None
         from datetime import date
@@ -101,20 +97,19 @@ class Client(models.Model):
             (today.month, today.day) < (self.date_of_birth.month, self.date_of_birth.day)
         )
 
-class FileNote(models.Model):
+
+class FileNote(AuditModel):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     client = models.ForeignKey(
-        'Client', 
+        'Client',
         on_delete=models.CASCADE,
         related_name='file_notes'
     )
     
-    # Content
     title = models.CharField(max_length=200)
-    body = models.TextField(blank=True) 
+    body = models.TextField(blank=True)
     
-    # Categorization
-    class NoteType(models.TextChoices):
+    class FileNoteType(models.TextChoices):
         GENERAL = 'GENERAL', 'General Note'
         MEETING = 'MEETING', 'Meeting Notes'
         PHONE_CALL = 'PHONE_CALL', 'Phone Call'
@@ -123,34 +118,12 @@ class FileNote(models.Model):
         COMPLIANCE = 'COMPLIANCE', 'Compliance'
     
     note_type = models.CharField(
-        max_length=20, 
-        choices=NoteType.choices, 
-        default=NoteType.GENERAL
+        max_length=20,
+        choices=FileNoteType.choices,
+        default=FileNoteType.GENERAL
     )
-    
+    is_private = models.BooleanField(default=False)
 
-    
-    # Audit fields - CRITICAL for compliance
-    created_by = models.ForeignKey(
-        'accounts.User',
-        on_delete=models.SET_NULL,  # Don't delete notes if user is deleted
-        related_name='file_notes_created',
-        null=True
-    )
-    updated_by = models.ForeignKey(
-        'accounts.User',
-        on_delete=models.SET_NULL,
-        related_name='file_notes_updated',
-        null=True,
-        blank=True
-    )
-    
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
-    
-    # Visibility/privacy
-    is_private = models.BooleanField(default=False)  # Only visible to creator?
-    
     class Meta:
         ordering = ['-created_at']
         verbose_name = 'File Note'
@@ -158,17 +131,47 @@ class FileNote(models.Model):
 
     def __str__(self):
         return f"{self.title} - {self.client.full_name()}"
-    
 
-class FileAttachment(models.Model):
+
+class ClientDocument(AuditModel):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    client = models.ForeignKey(
+        'Client',
+        on_delete=models.CASCADE,
+        related_name='documents'
+    )
+    # Optional - set when document is uploaded in context of a note
     file_note = models.ForeignKey(
         'FileNote',
-        on_delete=models.CASCADE,
-        related_name='attachments'
+        on_delete=models.SET_NULL,
+        related_name='documents',
+        null=True,
+        blank=True
     )
-    file = models.FileField(upload_to='file_notes/%Y/%m/')
+
+    class DocumentCategory(models.TextChoices):
+        IDENTIFICATION = 'IDENTIFICATION', 'Identification'
+        FINANCIAL = 'FINANCIAL', 'Financial'
+        COMPLIANCE = 'COMPLIANCE', 'Compliance'
+        SOA = 'SOA', 'Statement of Advice'
+        TAX = 'TAX', 'Tax'
+        INSURANCE = 'INSURANCE', 'Insurance'
+        OTHER = 'OTHER', 'Other'
+
+    file = models.FileField(upload_to='client_documents/%Y/%m/')
     name = models.CharField(max_length=255)
-    size = models.IntegerField()  # in bytes
-    uploaded_at = models.DateTimeField(auto_now_add=True)
-    uploaded_by = models.ForeignKey('accounts.User', on_delete=models.SET_NULL, null=True)
+    size = models.IntegerField()
+    category = models.CharField(
+        max_length=20,
+        choices=DocumentCategory.choices,
+        default=DocumentCategory.OTHER
+    )
+    description = models.TextField(blank=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        verbose_name = 'Client Document'
+        verbose_name_plural = 'Client Documents'
+
+    def __str__(self):
+        return f"{self.name} - {self.client.full_name()}"
